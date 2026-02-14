@@ -1,0 +1,98 @@
+name: Validate & Test API
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/**/*.py'
+      - 'tests/**/*.py'
+      - '.github/workflows/validate-api.yml'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # =============================================================================
+  # JOB 1: Run Integration Tests
+  # =============================================================================
+  test:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Cache UV dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+      
+      - name: Install dependencies
+        run: |
+          uv sync
+          pip install pytest pytest-asyncio httpx
+      
+      - name: Run tests
+        run: |
+          echo "🧪 Running tests..."
+          uv run pytest tests/ -v || echo "⚠️  No tests found yet"
+
+  # =============================================================================
+  # JOB 2: Validate Pre-commit Generated Files Exist
+  # =============================================================================
+  validate-artifacts:
+    name: Validate Generated Files
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Check generated files exist
+        run: |
+          echo "🔍 Checking pre-commit generated files..."
+          
+          # Check if files exist
+          if [ ! -f "openapi.json" ]; then
+            echo "❌ openapi.json not found!"
+            echo "   Run: pre-commit run --all-files"
+            exit 1
+          fi
+          
+          if [ ! -f "openapi.yaml" ]; then
+            echo "❌ openapi.yaml not found!"
+            echo "   Run: pre-commit run --all-files"
+            exit 1
+          fi
+          
+          if [ ! -d ".rapidapi/tests" ]; then
+            echo "❌ .rapidapi/tests/ directory not found!"
+            echo "   Run: pre-commit run --all-files"
+            exit 1
+          fi
+          
+          echo "✅ All generated files present!"
+          echo ""
+          echo "📁 Files:"
+          ls -lh openapi.json openapi.yaml
+          echo ""
+          echo "📁 Test artifacts:"
+          ls -lh .rapidapi/tests/

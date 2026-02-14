@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Local hooks for RapidAPI artifact generation
+  - repo: local
+    hooks:
+      - id: generate-test-artifacts
+        name: Generate RapidAPI Test Artifacts
+        entry: bash -c 'python3 scripts/extract_tests_for_rapidapi.py'
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+  - repo: local
+    hooks:
+      - id: generate-openapi-specs
+        name: Generate OpenAPI Specifications
+        entry: bash scripts/generate_openapi.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
